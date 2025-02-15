@@ -76,7 +76,6 @@ func saveLicense(licenseContent string, licenseName string, licenseDir string) e
 	}
 
 	filePath := filepath.Join(licenseDir, licenseName)
-
 	err = os.WriteFile(filePath, []byte(licenseContent), 0644)
 	if err != nil {
 		return fmt.Errorf("could not write license to file '%s': %w", filePath, err)
@@ -85,10 +84,25 @@ func saveLicense(licenseContent string, licenseName string, licenseDir string) e
 	return nil
 }
 
+func printHelp() {
+	programName := filepath.Base(os.Args[0])
+	fmt.Printf("Usage: %s <template-name> [options]\n", programName)
+	fmt.Println("Generate a license file based on a template and configuration.")
+	fmt.Println()
+	fmt.Println("Arguments:")
+	fmt.Println("  <template-name>  The base name of the license template to use (e.g., 'MIT')")
+	fmt.Println()
+	fmt.Println("Options:")
+	fmt.Println("  -author <name>        The author of the license (if not specified, it will be read from the config file)")
+	fmt.Println("  -config <file>        Path to the configuration file (default: config.json)")
+	fmt.Println("  -dir <directory>      Directory to save the generated license file (default: current directory)")
+	fmt.Println("  -help                 Show this help message and exit.")
+}
+
 func main() {
-	if len(os.Args) < 2 || strings.HasPrefix(os.Args[1], "-") {
-		fmt.Println("Error: License name (template) must be specified as the first argument.")
-		os.Exit(1)
+	if len(os.Args) < 2 || os.Args[1] == "-help" || os.Args[1] == "--help" {
+		printHelp()
+		os.Exit(0)
 	}
 
 	licenseBaseName := os.Args[1]
@@ -110,7 +124,7 @@ func main() {
 		authorFromConfig, err := readConfig(*configFileFlag)
 		if err != nil || authorFromConfig == "" {
 			fmt.Println("Error: Author must be specified via flag or config file.")
-			flag.Usage()
+			printHelp()
 			os.Exit(1)
 		}
 		author = authorFromConfig
@@ -129,7 +143,6 @@ func main() {
 	}
 
 	licenseContent := generateLicense(template, author, currentDate)
-
 	err = saveLicense(licenseContent, licenseBaseName+filepath.Ext(templateName), *licenseDirFlag)
 	if err != nil {
 		fmt.Println("Error saving license:", err)
