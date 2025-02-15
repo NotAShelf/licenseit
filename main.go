@@ -117,7 +117,8 @@ func printHelp() {
 	fmt.Println("Options:")
 	fmt.Println("  -author <name>        The author of the license (if not specified, it will be read from the config file)")
 	fmt.Println("  -config <file>        Path to the configuration file (optional)")
-	fmt.Println("  -dir <directory>      Directory to save the generated license file (default: current directory)")
+	fmt.Println("  -file <filename>      Name of the generated license file")
+	fmt.Println("  -dir <directory>      Directory to save generated licenses")
 	fmt.Println("  -help                 Show this help message and exit.")
 }
 
@@ -134,6 +135,7 @@ func main() {
 
 	authorFlag := flag.String("author", "", "Author's name for the license")
 	configFileFlag := flag.String("config", "", "Path to the configuration file")
+	licenseFileFlag := flag.String("file", "", "Name of the generated license file")
 	licenseDirFlag := flag.String("dir", ".", "Directory to save generated licenses")
 	flag.Parse()
 
@@ -172,11 +174,20 @@ func main() {
 	}
 
 	licenseContent := generateLicense(template, author, currentDate)
-	err = saveLicense(licenseContent, licenseBaseName+filepath.Ext(templateName), *licenseDirFlag)
+
+	// Determine the generated license file name from --file flag or fall back to template name
+	licenseFileName := *licenseFileFlag
+	if licenseFileName == "" {
+		licenseFileName = licenseBaseName + filepath.Ext(templateName)
+	}
+
+	// Save the generated license to the specified directory
+	err = saveLicense(licenseContent, licenseFileName, *licenseDirFlag)
 	if err != nil {
 		fmt.Println("Error saving license:", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("License '%s' created and saved for author: %s\n", licenseBaseName, author)
+	// Confirm the license file creation
+	fmt.Printf("License '%s' created and saved for author: %s\n", licenseFileName, author)
 }
