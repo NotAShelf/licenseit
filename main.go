@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"embed"
 	"encoding/json"
 	"flag"
@@ -10,13 +11,6 @@ import (
 	"strings"
 	"time"
 )
-
-type License struct {
-	Author       string
-	Date         string
-	TemplateName string
-	Content      string
-}
 
 type Config struct {
 	Author string `json:"author"`
@@ -77,7 +71,7 @@ func findTemplate(templateBaseName string) (string, error) {
 }
 
 func loadTemplate(templateName string) (string, error) {
-	// Read the template from the embedded files system.
+	// Read the template from the embedded file system
 	content, err := licenseTemplates.ReadFile("templates/" + templateName)
 	if err != nil {
 		return "", fmt.Errorf("could not read template file '%s': %w", templateName, err)
@@ -98,6 +92,21 @@ func saveLicense(licenseContent string, licenseName string, licenseDir string) e
 	}
 
 	filePath := filepath.Join(licenseDir, licenseName)
+
+	// If file exists, prompt the user for confirmation to overwrite
+	if _, err := os.Stat(filePath); err == nil {
+		fmt.Printf("File '%s' already exists. Overwrite? (y/N): ", filePath)
+		reader := bufio.NewReader(os.Stdin)
+		response, err := reader.ReadString('\n')
+		if err != nil {
+			return fmt.Errorf("could not read user input: %w", err)
+		}
+		response = strings.TrimSpace(response)
+		if strings.ToLower(response) != "y" {
+			return fmt.Errorf("operation aborted by user; file exists")
+		}
+	}
+
 	err = os.WriteFile(filePath, []byte(licenseContent), 0644)
 	if err != nil {
 		return fmt.Errorf("could not write license to file '%s': %w", filePath, err)
@@ -123,12 +132,14 @@ func printHelp() {
 }
 
 func main() {
+	// Show help if no template is provided
 	if len(os.Args) < 2 || os.Args[1] == "-help" || os.Args[1] == "--help" {
 		printHelp()
 		os.Exit(0)
 	}
 
 	licenseBaseName := os.Args[1]
+
 	newArgs := []string{os.Args[0]}
 	newArgs = append(newArgs, os.Args[2:]...)
 	os.Args = newArgs
@@ -139,35 +150,43 @@ func main() {
 	licenseDirFlag := flag.String("dir", ".", "Directory to save generated licenses")
 	flag.Parse()
 
-	// Get the name of the author from the -author flag if provided. Try the config file
-	// otherwise. If both are missing, exit with an error.
 	author := *authorFlag
 	if author == "" {
 		authorFromConfig, err := readConfig(*configFileFlag)
 		if err != nil {
-			fmt.Println("Error:", err)
-			printHelp()
-			os.Exit(1)
+			fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
 		}
+		if authorFromConfig != "" {
+			author = authorFromConfig
+		}
+	}
 
-		// If config didn't provide an author, exit with an error
-		if authorFromConfig == "" {
-			fmt.Println("Error: Author must be specified via flag or config file.")
-			printHelp()
+	if author == "" {
+		fmt.Print("Author not provided. Please enter the author's name: ")
+		reader := bufio.NewReader(os.Stdin)
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
 			os.Exit(1)
 		}
-		author = authorFromConfig
+		author = strings.TrimSpace(input)
+	}
+
+	if author == "" {
+		fmt.Fprintf(os.Stderr, "Error: Author is required.\n")
+		printHelp()
+		os.Exit(1)
 	}
 
 	templateName, err := findTemplate(licenseBaseName)
 	if err != nil {
-		fmt.Println("Error loading template:", err)
+		fmt.Fprintf(os.Stderr, "Error loading template: %v\n", err)
 		os.Exit(1)
 	}
 
 	template, err := loadTemplate(templateName)
 	if err != nil {
-		fmt.Println("Error loading template:", err)
+		fmt.Fprintf(os.Stderr, "Error loading template: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -180,13 +199,16 @@ func main() {
 		licenseFileName = licenseBaseName + filepath.Ext(templateName)
 	}
 
-	// Save the generated license to the specified directory
 	err = saveLicense(licenseContent, licenseFileName, *licenseDirFlag)
 	if err != nil {
-		fmt.Println("Error saving license:", err)
+		fmt.Fprintf(os.Stderr, "Error saving license: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Confirm the license file creation
-	fmt.Printf("License '%s' created and saved for author: %s\n", licenseFileName, author)
+	// Compute absolute path for the output file
+	absPath, err := filepath.Abs(filepath.Join(*licenseDirFlag, licenseFileName))
+	if err != nil {
+		absPath = filepath.Join(*licenseDirFlag, licenseFileName)
+	}
+	fmt.Printf("License '%s' created at '%s' for author: %s\n", licenseFileName, absPath, author)
 }
