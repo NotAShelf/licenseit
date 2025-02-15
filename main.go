@@ -26,16 +26,38 @@ type Config struct {
 var licenseTemplates embed.FS
 
 func readConfig(configFile string) (string, error) {
-	content, err := os.ReadFile(configFile)
-	if err != nil {
-		return "", err
+	// If -config flag is specified, use that path
+	if configFile != "" {
+		content, err := os.ReadFile(configFile)
+		if err != nil {
+			return "", fmt.Errorf("could not read config file '%s': %w", configFile, err)
+		}
+
+		var config Config
+
+		err = json.Unmarshal(content, &config)
+		if err != nil {
+			return "", fmt.Errorf("could not parse config file '%s': %w", configFile, err)
+		}
+
+		return config.Author, nil
 	}
-	var config Config
-	err = json.Unmarshal(content, &config)
-	if err != nil {
-		return "", err
+
+	// Otherwise, check $XDG_CONFIG_HOME
+	xdgConfigHome := os.Getenv("XDG_CONFIG_HOME")
+	if xdgConfigHome != "" {
+		configFile = filepath.Join(xdgConfigHome, "licenseit", "config.json")
+		content, err := os.ReadFile(configFile)
+		if err == nil {
+			var config Config
+			err = json.Unmarshal(content, &config)
+			if err == nil {
+				return config.Author, nil
+			}
+		}
 	}
-	return config.Author, nil
+
+	return "", nil
 }
 
 func findTemplate(templateBaseName string) (string, error) {
@@ -94,7 +116,7 @@ func printHelp() {
 	fmt.Println()
 	fmt.Println("Options:")
 	fmt.Println("  -author <name>        The author of the license (if not specified, it will be read from the config file)")
-	fmt.Println("  -config <file>        Path to the configuration file (default: config.json)")
+	fmt.Println("  -config <file>        Path to the configuration file (optional)")
 	fmt.Println("  -dir <directory>      Directory to save the generated license file (default: current directory)")
 	fmt.Println("  -help                 Show this help message and exit.")
 }
@@ -111,7 +133,7 @@ func main() {
 	os.Args = newArgs
 
 	authorFlag := flag.String("author", "", "Author's name for the license")
-	configFileFlag := flag.String("config", "config.json", "Path to the configuration file (optional)")
+	configFileFlag := flag.String("config", "", "Path to the configuration file")
 	licenseDirFlag := flag.String("dir", ".", "Directory to save generated licenses")
 	flag.Parse()
 
@@ -122,7 +144,14 @@ func main() {
 	author := *authorFlag
 	if author == "" {
 		authorFromConfig, err := readConfig(*configFileFlag)
-		if err != nil || authorFromConfig == "" {
+		if err != nil {
+			fmt.Println("Error:", err)
+			printHelp()
+			os.Exit(1)
+		}
+
+		// If config didn't provide an author, exit with an error
+		if authorFromConfig == "" {
 			fmt.Println("Error: Author must be specified via flag or config file.")
 			printHelp()
 			os.Exit(1)
