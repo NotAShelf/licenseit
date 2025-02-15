@@ -56,6 +56,7 @@ func readConfig(configFile string) (string, error) {
 
 func findTemplate(templateBaseName string) (string, error) {
 	extensions := []string{".txt", ".md"}
+
 	for _, ext := range extensions {
 		templateName := templateBaseName + ext
 		_, err := licenseTemplates.ReadFile("templates/" + templateName)
@@ -63,10 +64,12 @@ func findTemplate(templateBaseName string) (string, error) {
 			return templateName, nil
 		}
 	}
+
 	_, err := licenseTemplates.ReadFile("templates/" + templateBaseName)
 	if err == nil {
 		return templateBaseName, nil
 	}
+
 	return "", fmt.Errorf("could not find a template for '%s' with supported extensions", templateBaseName)
 }
 
@@ -76,6 +79,7 @@ func loadTemplate(templateName string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("could not read template file '%s': %w", templateName, err)
 	}
+
 	return string(content), nil
 }
 
@@ -93,7 +97,7 @@ func saveLicense(licenseContent string, licenseName string, licenseDir string) e
 
 	filePath := filepath.Join(licenseDir, licenseName)
 
-	// If file exists, prompt the user for confirmation to overwrite
+	// If file exists, prompt for overwrite
 	if _, err := os.Stat(filePath); err == nil {
 		fmt.Printf("File '%s' already exists. Overwrite? (y/N): ", filePath)
 		reader := bufio.NewReader(os.Stdin)
@@ -115,31 +119,56 @@ func saveLicense(licenseContent string, licenseName string, licenseDir string) e
 	return nil
 }
 
+func listTemplates() error {
+	entries, err := licenseTemplates.ReadDir("templates")
+	if err != nil {
+		return fmt.Errorf("could not read templates directory: %w", err)
+	}
+
+	fmt.Println("Available license templates:")
+	for _, entry := range entries {
+		fmt.Println(" -", entry.Name())
+	}
+
+	return nil
+}
+
 func printHelp() {
 	programName := filepath.Base(os.Args[0])
 	fmt.Printf("Usage: %s <template-name> [options]\n", programName)
 	fmt.Println("Generate a license file based on a template and configuration.")
 	fmt.Println()
+	fmt.Println("Commands:")
+	fmt.Println("  preview              Show available license templates")
+	fmt.Println()
 	fmt.Println("Arguments:")
-	fmt.Println("  <template-name>  The base name of the license template to use (e.g., 'MIT')")
+	fmt.Println("  <template-name>      The base name of the license template to use (e.g., 'MIT')")
 	fmt.Println()
 	fmt.Println("Options:")
-	fmt.Println("  -author <name>        The author of the license (if not specified, it will be read from the config file)")
-	fmt.Println("  -config <file>        Path to the configuration file (optional)")
-	fmt.Println("  -file <filename>      Name of the generated license file")
-	fmt.Println("  -dir <directory>      Directory to save generated licenses")
-	fmt.Println("  -help                 Show this help message and exit.")
+	fmt.Println("  -author <name>       The author of the license")
+	fmt.Println("  -config <file>       Path to the configuration file")
+	fmt.Println("  -file <filename>     Name of the generated license file")
+	fmt.Println("  -dir <directory>     Directory to save generated licenses")
+	fmt.Println("  -help                Show this help message and exit.")
 }
 
 func main() {
-	// Show help if no template is provided
+	// Show help if no arguments provided
 	if len(os.Args) < 2 || os.Args[1] == "-help" || os.Args[1] == "--help" {
 		printHelp()
 		os.Exit(0)
 	}
 
-	licenseBaseName := os.Args[1]
+	if os.Args[1] == "preview" {
+		err := listTemplates()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 
+	licenseBaseName := os.Args[1]
 	newArgs := []string{os.Args[0]}
 	newArgs = append(newArgs, os.Args[2:]...)
 	os.Args = newArgs
