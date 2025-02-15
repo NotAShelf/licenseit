@@ -139,8 +139,6 @@ func main() {
 	licenseDirFlag := flag.String("dir", ".", "Directory to save generated licenses")
 	flag.Parse()
 
-	currentDate := time.Now().Format("2006-01-02")
-
 	// Get the name of the author from the -author flag if provided. Try the config file
 	// otherwise. If both are missing, exit with an error.
 	author := *authorFlag
@@ -173,7 +171,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	licenseContent := generateLicense(template, author, currentDate)
+	currentYear := time.Now().Year()
+	licenseContent := generateLicense(template, author, fmt.Sprintf("%d", currentYear))
 
 	// Determine the generated license file name from --file flag or fall back to template name
 	licenseFileName := *licenseFileFlag
